@@ -1,0 +1,13 @@
+{
+  "name": "week02-tool-use",
+  "version": "1.0.0",
+  "description": "Week 2: Function Calling 实战 — 天气查询 + 计算器助手（OpenAI 兼容协议，无 SDK）",
+  "type": "module",
+  "scripts": {
+    "start": "node agent.js",
+    "start:teach": "node agent-start.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
