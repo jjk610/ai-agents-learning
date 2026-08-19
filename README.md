@@ -24,7 +24,7 @@
 
 ## 🗺 路线图
 
-- [ ] **Week 1** — 精读 Anthropic《Building Effective Agents》+ OpenAI Agent 指南
+- [x] **Week 1** — 精读 Anthropic《Building Effective Agents》+ OpenAI Agent 指南
 - [ ] **Week 2** — Claude API Tool Use：天气 + 计算器助手
 - [ ] **Week 3** — 手写 Agent Loop：文件整理 Agent
 - [ ] **Week 4** — 长期记忆（SQLite/JSON 存储）
