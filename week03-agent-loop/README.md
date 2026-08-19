@@ -8,6 +8,13 @@
 不依赖任何 Agent SDK，手写一个文件整理 Agent：
 **自己探索目录 → 自己规划分类 → 自己执行整理 → 自己反思复查 → 总结收工**
 
+## 📦 两个程序
+
+| 文件 | 作用 | 模式 |
+|------|------|------|
+| `agent.py` | 手写 Agent Loop：一次性整理指定目录 | 交互式（LLM 全程决策） |
+| `download_watcher.py` | **下载文件夹自动归类守护程序** | 混合模式（规则优先 + LLM 兜底）|
+
 ## 为什么这是「核心周」
 
 | | Week 2（工具调用） | Week 3（真 Agent） |
@@ -118,3 +125,80 @@ Turn 5  done(总结)                → 收工：15 文件 → 6 文件夹，0 �
 ## 下一步
 这个 Agent 已经很接近「真 Agent」结构了。Week 8 用框架（LangGraph / Claude Agent SDK）重写它时，你会发现框架就是把这套 while 循环 + 工具 + 状态管理封装成了方便组件。
 也可以先自己扩展玩法：让它支持二级分类（如 文档/合同 vs 文档/笔记）、按文件名关键词分类、或生成整理报告文件。
+
+---
+
+# 🔧 扩展：下载文件夹自动归类守护程序（download_watcher.py）
+
+> 让"从网上下载的文件"下载完成即自动归类，不用手动整理。
+
+## 设计：混合模式（规则优先 + LLM 兜底）
+
+```
+[浏览器] 下载新文件 → Downloads/
+       │  (watchdog 监听文件系统事件)
+       ▼
+┌─────────────────────────────┐
+│ ① 规则层（毫秒级、免费、断网可用） │
+│    .jpg/.png  → 图片/         │
+│    .pdf/.doc  → 文档/         │
+│    .exe/.msi  → 安装包/       │
+│    ... 命中 → 直接移动 ✅      │
+└──────────────┬──────────────┘
+               │ 没命中规则？
+               ▼
+┌─────────────────────────────┐
+│ ② LLM 兜底层                 │
+│    qwen 判断"这文件该放哪"     │
+│    → 返回文件夹名 → 移动        │
+└─────────────────────────────┘
+```
+
+**为什么混合？** 按扩展名规则覆盖 90% 常见类型（零成本），只有生僻类型才让 LLM 判断——符合 Anthropic「能固定就不用 Agent」的工程原则。
+
+## 运行
+
+```bash
+pip install watchdog          # 第一次需要
+python download_watcher.py                 # 默认监听 ~/Downloads
+python download_watcher.py D:/某个目录       # 指定目录
+```
+
+Ctrl+C 停止。放后台运行: `python download_watcher.py` 放到一个终端挂着即可。
+
+## 内置规则表（可自行增删）
+
+| 分类 | 扩展名 |
+|------|--------|
+| 图片 | .jpg .jpeg .png .gif .bmp .svg .webp .ico |
+| 视频 | .mp4 .avi .mkv .mov .flv .wmv .webm |
+| 音乐 | .mp3 .wav .flac .aac .ogg .m4a |
+| 文档 | .pdf .doc .docx .txt .md .odt .rtf .tex |
+| 表格 | .xls .xlsx .csv .ods |
+| 演示文稿 | .ppt .pptx .key |
+| 代码 | .py .js .ts .java .c .cpp .h .html .css .json .sh .go .rs .php .ipynb |
+| 压缩包 | .zip .rar .7z .tar .gz .bz2 |
+| 安装包 | .exe .msi .dmg |
+| 设计 | .psd .ai .fig .sketch |
+
+## 安全设计（重要）
+
+1. **只处理新出现的文件** —— 绝不动你已有的老文件（watchdog 监听的是 on_created 事件）
+2. **忽略浏览器临时文件** —— `.crdownload` / `.part` / `.tmp`（下载中不误动）
+3. **等下载完成再动** —— 连续 1 秒文件大小不变才判定写完，避免移动半截文件
+4. **跨盘符安全移动** —— 用 shutil.move 而非 os.rename，失败不丢数据
+
+## 真实测试结果
+
+模拟"浏览器下载"4 个文件到监听目录，全部自动归位：
+
+```
+📥 旅行照片.jpg   → ✅ [规则] 图片/
+📥 项目预案.pdf   → ✅ [规则] 文档/
+📥 动画演示.mov   → ✅ [规则] 视频/
+📥 神秘备份.rxk   → ✅ [LLM] 备份/   ← 规则不认识，LLM 兜底归为备份
+```
+
+## 遇到的坑（复盘）
+
+**qwen thinking 模式不支持 tool_choice=object/required。** 第一次用 `tool_choice` 强制模型调 classify 工具时返回 400。解决：去掉 tool_choice，让模型自由发挥，代码同时解析「工具调用」和「纯文字回答」两种返回。这是国产模型与 GPT/Claude 的差异点之一，值得记住。
